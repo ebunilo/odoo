@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════
+         FORM VIEW
+    ════════════════════════════════════════════════════════ -->
+    <record id="fleet_dispatch_view_form" model="ir.ui.view">
+        <field name="name">fleet.dispatch.form</field>
+        <field name="model">fleet.dispatch</field>
+        <field name="arch" type="xml">
+            <form string="Dispatch">
+                <header>
+                    <button string="Confirm Dispatch"
+                        name="action_dispatch"
+                        type="object"
+                        class="btn-primary"
+                        invisible="state != 'draft'"/>
+                    <button string="Mark as Returned"
+                        name="action_return"
+                        type="object"
+                        class="btn-primary"
+                        invisible="state != 'dispatched'"/>
+                    <button string="Mark as Done"
+                        name="action_done"
+                        type="object"
+                        class="btn-primary"
+                        invisible="state != 'returned'"/>
+                    <button string="Cancel"
+                        name="action_cancel"
+                        type="object"
+                        invisible="state in ('done', 'cancelled')"/>
+                    <button string="Reset to Draft"
+                        name="action_reset_draft"
+                        type="object"
+                        invisible="state != 'cancelled'"/>
+                    <field name="state" widget="statusbar"
+                        statusbar_visible="draft,dispatched,returned,done"/>
+                </header>
+                <sheet>
+                    <field name="currency_id" invisible="1"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+
+                    <group col="2">
+                        <!-- Left: Vehicle & Driver -->
+                        <group string="Vehicle &amp; Driver">
+                            <field name="vehicle_id"/>
+                            <field name="driver_id" widget="many2one_avatar"/>
+                            <field name="dispatch_date"/>
+                            <field name="company_id"
+                                groups="base.group_multi_company"
+                                placeholder="Visible to all"/>
+                        </group>
+                        <!-- Right: Trip Details -->
+                        <group string="Trip Details">
+                            <field name="origin"/>
+                            <field name="destination"/>
+                            <field name="cargo_description"/>
+                            <label for="odometer"/>
+                            <div class="o_row">
+                                <field name="odometer" class="w-25"/>
+                                <field name="odometer_unit" class="ps-1 ps-sm-0"/>
+                            </div>
+                        </group>
+                    </group>
+
+                    <group col="2">
+                        <!-- Left: Fuelling -->
+                        <group string="Fuelling">
+                            <field name="fuel_station_id" widget="many2one_avatar"/>
+                            <field name="diesel_litres"/>
+                            <field name="fuel_price_per_litre" widget="monetary"/>
+                            <field name="fuel_cost" widget="monetary"/>
+                        </group>
+                        <!-- Right: Cash Advance & Totals -->
+                        <group string="Cash Advance &amp; Reimbursement">
+                            <field name="cash_advance" widget="monetary"/>
+                            <field name="total_reimbursable" widget="monetary"/>
+                        </group>
+                    </group>
+
+                    <separator string="Notes"/>
+                    <field name="notes" nolabel="1"
+                        placeholder="Any additional information about this dispatch trip..."/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         LIST VIEW
+    ════════════════════════════════════════════════════════ -->
+    <record id="fleet_dispatch_view_list" model="ir.ui.view">
+        <field name="name">fleet.dispatch.list</field>
+        <field name="model">fleet.dispatch</field>
+        <field name="arch" type="xml">
+            <list string="Dispatches"
+                decoration-info="state == 'draft'"
+                decoration-warning="state == 'dispatched'"
+                decoration-success="state == 'returned'"
+                decoration-muted="state == 'cancelled'"
+                multi_edit="1"
+                sample="1">
+                <field name="name" readonly="1" class="fw-bold"/>
+                <field name="dispatch_date"/>
+                <field name="vehicle_id" widget="many2one_avatar"/>
+                <field name="driver_id" widget="many2one_avatar"/>
+                <field name="fuel_station_id"/>
+                <field name="destination"/>
+                <field name="diesel_litres" sum="Total Litres"/>
+                <field name="cash_advance" sum="Total Advance" widget="monetary"/>
+                <field name="fuel_cost" sum="Total Fuel Cost" widget="monetary" optional="show"/>
+                <field name="total_reimbursable" sum="Total Reimbursable" widget="monetary"/>
+                <field name="currency_id" column_invisible="True"/>
+                <field name="state" widget="badge"
+                    decoration-info="state == 'draft'"
+                    decoration-warning="state == 'dispatched'"
+                    decoration-success="state in ('returned', 'done')"
+                    decoration-danger="state == 'cancelled'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         KANBAN VIEW
+    ════════════════════════════════════════════════════════ -->
+    <record id="fleet_dispatch_view_kanban" model="ir.ui.view">
+        <field name="name">fleet.dispatch.kanban</field>
+        <field name="model">fleet.dispatch</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" sample="1">
+                <field name="currency_id"/>
+                <field name="state"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <field name="name" class="fw-bold"/>
+                            <field class="badge text-bg-secondary" name="state"/>
+                        </div>
+                        <field name="vehicle_id" class="text-muted"/>
+                        <div>
+                            <field name="dispatch_date"/>
+                            <span class="float-end">
+                                <field name="destination"/>
+                            </span>
+                        </div>
+                        <div>
+                            <strong><field name="fuel_station_id"/></strong>
+                        </div>
+                        <footer class="pt-0">
+                            <span>
+                                <field name="diesel_litres"/> L
+                            </span>
+                            <field name="total_reimbursable" widget="monetary"
+                                options="{'currency_field': 'currency_id'}"
+                                class="float-end fw-bold"/>
+                        </footer>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         SEARCH VIEW
+    ════════════════════════════════════════════════════════ -->
+    <record id="fleet_dispatch_view_search" model="ir.ui.view">
+        <field name="name">fleet.dispatch.search</field>
+        <field name="model">fleet.dispatch</field>
+        <field name="arch" type="xml">
+            <search string="Dispatches">
+                <field name="name"/>
+                <field name="vehicle_id" string="Truck"
+                    filter_domain="[('vehicle_id.name', 'ilike', self)]"/>
+                <field name="driver_id" string="Driver"
+                    filter_domain="[('driver_id', 'child_of', self)]"/>
+                <field name="fuel_station_id" string="Fuel Station"
+                    filter_domain="[('fuel_station_id', 'child_of', self)]"/>
+                <field name="destination"/>
+                <separator/>
+                <filter string="Draft"       name="draft"      domain="[('state', '=', 'draft')]"/>
+                <filter string="Dispatched"  name="dispatched" domain="[('state', '=', 'dispatched')]"/>
+                <filter string="Returned"    name="returned"   domain="[('state', '=', 'returned')]"/>
+                <filter string="Done"        name="done"       domain="[('state', '=', 'done')]"/>
+                <separator/>
+                <filter string="Today"       name="today"
+                    domain="[('dispatch_date', '=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter string="This Month"  name="this_month"
+                    domain="[('dispatch_date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <group>
+                    <filter string="Vehicle"      name="groupby_vehicle"  context="{'group_by': 'vehicle_id'}"/>
+                    <filter string="Driver"       name="groupby_driver"   context="{'group_by': 'driver_id'}"/>
+                    <filter string="Fuel Station" name="groupby_station"  context="{'group_by': 'fuel_station_id'}"/>
+                    <filter string="Date"         name="groupby_date"     context="{'group_by': 'dispatch_date:month'}"/>
+                    <filter string="Status"       name="groupby_state"    context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         PIVOT VIEW
+    ════════════════════════════════════════════════════════ -->
+    <record id="fleet_dispatch_view_pivot" model="ir.ui.view">
+        <field name="name">fleet.dispatch.pivot</field>
+        <field name="model">fleet.dispatch</field>
+        <field name="arch" type="xml">
+            <pivot string="Dispatch Analysis" sample="1">
+                <field name="dispatch_date" type="col" interval="month"/>
+                <field name="vehicle_id"    type="row"/>
+                <field name="diesel_litres"      type="measure"/>
+                <field name="cash_advance"       type="measure"/>
+                <field name="fuel_cost"          type="measure"/>
+                <field name="total_reimbursable" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         GRAPH VIEW
+    ════════════════════════════════════════════════════════ -->
+    <record id="fleet_dispatch_view_graph" model="ir.ui.view">
+        <field name="name">fleet.dispatch.graph</field>
+        <field name="model">fleet.dispatch</field>
+        <field name="arch" type="xml">
+            <graph string="Dispatch Analysis" sample="1">
+                <field name="dispatch_date" interval="month"/>
+                <field name="vehicle_id"/>
+                <field name="total_reimbursable" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         ACTION
+    ════════════════════════════════════════════════════════ -->
+    <record id="fleet_dispatch_action" model="ir.actions.act_window">
+        <field name="name">Dispatches</field>
+        <field name="res_model">fleet.dispatch</field>
+        <field name="view_mode">list,kanban,form,graph,pivot</field>
+        <field name="context">{'search_default_dispatched': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new dispatch record
+            </p>
+            <p>
+                Record every truck dispatch — fuel fill-up at the designated
+                fuel station and cash advance given to the driver — so the
+                vendor can be reimbursed accurately.
+            </p>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         SEQUENCE
+    ════════════════════════════════════════════════════════ -->
+    <record id="seq_fleet_dispatch" model="ir.sequence">
+        <field name="name">Fleet Dispatch</field>
+        <field name="code">fleet.dispatch</field>
+        <field name="prefix">DISP/%(year)s/</field>
+        <field name="padding">5</field>
+        <field name="company_id" eval="False"/>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         MENU ITEMS  (added under the existing Fleet app)
+    ════════════════════════════════════════════════════════ -->
+    <!-- "Dispatches" under the Fleet ▸ Fleet sub-menu -->
+    <menuitem id="fleet_dispatch_menu"
+              name="Dispatches"
+              parent="fleet.fleet_vehicles"
+              action="fleet_dispatch_action"
+              groups="fleet.fleet_group_user"
+              sequence="5"/>
+
+    <!-- Reporting sub-entry -->
+    <record id="fleet_dispatch_report_action" model="ir.actions.act_window">
+        <field name="name">Dispatch Analysis</field>
+        <field name="res_model">fleet.dispatch</field>
+        <field name="view_mode">graph,pivot</field>
+        <field name="context">{'search_default_groupby_vehicle': 1}</field>
+    </record>
+
+    <menuitem id="fleet_dispatch_reporting_menu"
+              name="Dispatch Analysis"
+              parent="fleet.menu_fleet_reporting"
+              action="fleet_dispatch_report_action"
+              groups="fleet.fleet_group_manager"
+              sequence="10"/>
+
+</odoo>
