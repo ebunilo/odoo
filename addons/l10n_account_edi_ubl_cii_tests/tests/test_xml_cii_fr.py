@@ -11,6 +11,8 @@ class TestCIIFR(TestUBLCommon):
     def setUpClass(cls):
         super().setUpClass()
 
+        cls.is_l10n_fr_pdp_installed = cls.env['ir.module.module']._get('l10n_fr_pdp').state == 'installed'
+
         cls.partner_1 = cls.env['res.partner'].create({
             'name': "partner_1",
             'street': "Rue Jean Jaurès, 42",
@@ -109,6 +111,15 @@ class TestCIIFR(TestUBLCommon):
             **kwargs,
         )
 
+    def _adapt_expected_etree_to_installed_modules(self, expected_etree):
+        super()._adapt_expected_etree_to_installed_modules(expected_etree)
+        if not self.is_l10n_fr_pdp_installed:
+            ns = {'ram': 'urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100'}
+            for note in expected_etree.findall('.//ram:IncludedNote', namespaces=ns):
+                subject_code = note.findtext('ram:SubjectCode', namespaces=ns)
+                if subject_code in ('PMT', 'PMD', 'AAB'):
+                    note.getparent().remove(note)
+
     ####################################################
     # Test export - import
     ####################################################
@@ -140,6 +151,10 @@ class TestCIIFR(TestUBLCommon):
         self.assertEqual(pdf_attachment['name'], facturx_filename)
 
     def test_export_import_invoice(self):
+        company = self.company_data['company']
+        if 'predict_bill_product' in company._fields:
+            company.predict_bill_product = True
+
         invoice = self._generate_move(
             self.partner_1,
             self.partner_2,
@@ -189,6 +204,10 @@ class TestCIIFR(TestUBLCommon):
         self._assert_imported_invoice_from_etree(invoice, attachment)
 
     def test_export_import_refund(self):
+        company = self.company_data['company']
+        if 'predict_bill_product' in company._fields:
+            company.predict_bill_product = True
+
         refund = self._generate_move(
             self.partner_1,
             self.partner_2,
@@ -458,7 +477,7 @@ class TestCIIFR(TestUBLCommon):
         invoice_vals = {
             'amount_total': 233.47,
             'amount_tax': 14.99,
-            'invoice_lines': [{'price_subtotal': 20.48}, {'price_subtotal': 198}]
+            'invoice_lines': [{'price_subtotal': 20.5}, {'price_subtotal': 198.0}, {'price_subtotal': -0.02}]
         }
         # source: Avoir_FR_type380_EN16931.pdf
         self._assert_imported_invoice_from_file(
@@ -487,7 +506,7 @@ class TestCIIFR(TestUBLCommon):
             invoice_vals={
                 'amount_total': 100,
                 'amount_tax': 0,
-                'invoice_lines': [{'price_subtotal': p} for p in (-5, 10, 60, 30, 5)],
+                'invoice_lines': [{'price_subtotal': p} for p in (10.0, -5.0, 60.0, 30.0, 5.0)],
             },
             move_type='in_refund',
         )

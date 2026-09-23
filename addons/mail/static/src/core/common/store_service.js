@@ -501,13 +501,10 @@ export class Store extends BaseStore {
                 } catch {
                     // assumes tab not focused: parent.document from iframe triggers CORS error
                 }
-                // Prevent duplicate inbox push notifications since they're already handled by
-                // `mail.message/inbox` bus notifications, and the `modelsHandleByPush` heuristic
-                // in `out_of_focus_service.js` isn't reliable enough to detect these cases.
-                const isInbox =
-                    this.store.self.main_user_id?.notification_type === "inbox" &&
-                    model !== "discuss.channel";
-                if ((isTabFocused && thread?.isDisplayed) || isInbox) {
+                if (
+                    this.self_partner?.im_status?.includes("busy") ||
+                    (isTabFocused && thread?.isDisplayed)
+                ) {
                     navigator.serviceWorker.controller?.postMessage({
                         type: "notification-display-response",
                         payload: { correlationId },
@@ -601,11 +598,23 @@ export class Store extends BaseStore {
                 : `#${thread.displayName}`;
             return segments.some((segment) => segment.includes(mention));
         });
-        validMentions.partners = mentionedPartners.filter((partner) =>
-            segments.some((segment) =>
-                segment.includes(`@${thread?.getPersonaName?.(partner) ?? partner.name}`)
-            )
+        // Longest mention text first, so e.g. "@John" inside "@John Doe" isn't kept.
+        const mentionText = (partner) => `@${thread?.getPersonaName?.(partner) ?? partner.name}`;
+        const remaining = [...segments];
+        const kept = new Set(
+            [...mentionedPartners]
+                .sort((p1, p2) => mentionText(p2).length - mentionText(p1).length)
+                .filter((partner) => {
+                    const text = mentionText(partner);
+                    const i = remaining.findIndex((s) => s.includes(text));
+                    if (i === -1) {
+                        return false;
+                    }
+                    remaining[i] = remaining[i].replace(text, " ".repeat(text.length));
+                    return true;
+                })
         );
+        validMentions.partners = mentionedPartners.filter((partner) => kept.has(partner));
         validMentions.roles = mentionedRoles.filter((role) =>
             segments.some((segment) => segment.includes(`@${role.name}`))
         );

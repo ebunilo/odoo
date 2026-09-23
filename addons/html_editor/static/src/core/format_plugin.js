@@ -53,7 +53,7 @@ function isFormatted(formatPlugin, format) {
  * }) => void | boolean)[]} format_selection_handlers
  * @typedef {(() => void)[]} remove_all_formats_handlers
  *
- * @typedef {((className: string) => boolean)[]} format_class_predicates
+ * @typedef {((className: string, targetClassName?: string) => boolean)[]} format_class_predicates
  * @typedef {((node: Node) => boolean)[]} has_format_predicates
  */
 
@@ -388,7 +388,9 @@ export class FormatPlugin extends Plugin {
             // with a class that is not indicated as splittable.
             const isClassListSplittable = (classList) =>
                 [...classList].every((className) =>
-                    this.getResource("format_class_predicates").some((cb) => cb(className))
+                    this.getResource("format_class_predicates").some((cb) =>
+                        cb(className, formatProps?.className)
+                    )
                 );
 
             // Special case: if the parent node is unsplittable and fully selected,
@@ -403,35 +405,42 @@ export class FormatPlugin extends Plugin {
                 inlineAncestors.push(parentNode);
             }
 
-            while (
-                parentNode &&
-                !isBlock(parentNode) &&
-                !this.dependencies.split.isUnsplittable(parentNode) &&
-                (parentNode.classList.length === 0 || isClassListSplittable(parentNode.classList))
-            ) {
-                const isUselessZws =
-                    parentNode.tagName === "SPAN" &&
-                    parentNode.hasAttribute("data-oe-zws-empty-inline") &&
-                    parentNode.getAttributeNames().length === 1;
-
-                if (isUselessZws) {
-                    cursor.update(callbacksForCursorUpdate.unwrap(parentNode));
-                    unwrapContents(parentNode);
-                } else {
-                    const newLastAncestorInlineFormat = this.dependencies.split.splitAroundUntil(
-                        currentNode,
-                        parentNode
-                    );
-                    removeFormat(newLastAncestorInlineFormat, formatSpec, cursor);
-                    if (["setFontSizeClassName", "fontSize"].includes(formatName) && applyStyle) {
-                        removeClass(newLastAncestorInlineFormat, "o_default_font_size");
+            while (parentNode && !isBlock(parentNode)) {
+                const isNodeUnsplittable = this.dependencies.split.isUnsplittable(parentNode);
+                const isClassSplittable =
+                    parentNode.classList.length === 0 ||
+                    isClassListSplittable(parentNode.classList);
+                if (!isNodeUnsplittable && isClassSplittable) {
+                    const isUselessZws =
+                        parentNode.tagName === "SPAN" &&
+                        parentNode.hasAttribute("data-oe-zws-empty-inline") &&
+                        parentNode.getAttributeNames().length === 1;
+                    if (isUselessZws) {
+                        cursor.update(callbacksForCursorUpdate.unwrap(parentNode));
+                        unwrapContents(parentNode);
+                    } else {
+                        const newLastAncestorInlineFormat =
+                            this.dependencies.split.splitAroundUntil(currentNode, parentNode);
+                        removeFormat(newLastAncestorInlineFormat, formatSpec, cursor);
+                        if (newLastAncestorInlineFormat.isConnected) {
+                            inlineAncestors.push(newLastAncestorInlineFormat);
+                            currentNode = newLastAncestorInlineFormat;
+                        }
                     }
-                    if (newLastAncestorInlineFormat.isConnected) {
-                        inlineAncestors.push(newLastAncestorInlineFormat);
-                        currentNode = newLastAncestorInlineFormat;
+                } else {
+                    if (["setFontSizeClassName", "fontSize"].includes(formatName) && applyStyle) {
+                        removeClass(parentNode, "o_default_font_size");
+                    }
+                    if (
+                        !applyStyle &&
+                        isNodeUnsplittable &&
+                        this.dependencies.selection.areNodeContentsFullySelected(parentNode)
+                    ) {
+                        currentNode = currentNode.parentElement;
+                    } else {
+                        break;
                     }
                 }
-
                 parentNode = currentNode.parentElement;
             }
 
@@ -479,7 +488,6 @@ export class FormatPlugin extends Plugin {
                 }
             }
         }
-
         for (const targetedFieldNode of tagetedFieldNodes) {
             if (applyStyle) {
                 formatSpec.addStyle(targetedFieldNode, formatProps);

@@ -272,8 +272,7 @@ class StockMove(models.Model):
         total_qty = sum(m._get_valued_qty() * (-1 if m.is_in else 1) for m in self)
         valued_consigned_qty = self._get_valued_consigned_qty()
         total_valued_qty = total_qty + valued_consigned_qty
-        if total_valued_qty and (self.product_id.cost_method == 'fifo' or valued_consigned_qty or
-            (self.product_id.lot_valuated and self.product_id.cost_method == 'average')):
+        if total_valued_qty and (self.product_id.cost_method in ['fifo', 'average'] or valued_consigned_qty):
             total_value = sum(m.value * (-1 if m.is_in else 1) for m in self)
             return total_value / total_valued_qty
         else:
@@ -311,7 +310,7 @@ class StockMove(models.Model):
             for move in moves:
                 move = move.with_company(company.id)
                 # Incoming moves
-                if move.is_dropship or move.is_in:
+                if move.is_in:
                     products_to_recompute.add(move.product_id.id)
                     if move.product_id.lot_valuated:
                         if any(not ml.lot_id for ml in move.move_line_ids):
@@ -319,7 +318,6 @@ class StockMove(models.Model):
                                 "A lot/serial number is required for product '%s' as it has lot valuation enabled.",
                                 move.product_id.display_name))
                         lots_to_recompute.update(move.move_line_ids.lot_id.ids)
-                if move.is_in:
                     move.value = move.sudo()._get_value()
                     if self.env.context.get('std_price_incremental_recompute') and move.product_id.is_storable:
                         # fast path: add extra_value/extra_qty to standard price (only realtime)
@@ -331,9 +329,10 @@ class StockMove(models.Model):
                     continue
                 if correction_quantity:
                     previous_qty = move.quantity - correction_quantity
-                    ratio = correction_quantity / previous_qty if previous_qty else 0
-                    move.value += ratio * move.value
-                    continue
+                    if previous_qty:
+                        ratio = correction_quantity / previous_qty
+                        move.value += ratio * move.value
+                        continue
                 if move.product_id.lot_valuated:
                     value = 0.0
                     for move_line in move.move_line_ids:
@@ -704,7 +703,7 @@ class StockMove(models.Model):
         dropship_moves = self.filtered(lambda m: m._is_dropshipped() or m._is_dropshipped_returned())
         dropship_quantity = sum(m._get_valued_qty() for m in dropship_moves)
         dropship_price_unit = dropship_moves._get_price_unit_dropshipped()
-        regular_moves = self - dropship_moves
+        regular_moves = (self - dropship_moves).filtered(lambda m: m.is_out)
         regular_quantity = sum(m._get_valued_qty() for m in regular_moves)
         regular_price_unit = regular_moves._get_price_unit()
         total_quantity = dropship_quantity + regular_quantity

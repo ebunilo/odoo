@@ -210,30 +210,17 @@ class TestL10nPlEdi(AccountTestInvoicingCommon, CronMixinCase):
 
     @freeze_time('2026-01-23')
     def test_ksef_fa3_reverse_charge(self):
+        K_12_tax = self.env['account.chart.template'].ref('vs_dostu')
+        K_31_tax = self.env['account.chart.template'].ref('vs_stal')
         invoice = self._create_invoice(
-                invoice_date=fields.Date.today(),
-                partner_id=self.partner_pl,
-                invoice_line_ids=[
-                    Command.create({
-                        'product_id': self.product.id,
-                        'price_unit': 1000.0,
-                        'tax_ids': [Command.set(self.env['account.chart.template'].ref('vs_dostu').ids)],
-                    }),
-                    Command.create({
-                        'product_id': self.product.id,
-                        'price_unit': 1000.0,
-                        'tax_ids': [Command.set(self.env['account.chart.template'].ref('vs_kraj_8').ids)],
-                    }),
-                ],
-                post=True,
-        )
-
+            invoice_date=fields.Date.today(),
+            partner_id=self.partner_pl,
+            invoice_line_ids=[
+                Command.create({'product_id': self.product_a.id, 'quantity': 1, 'price_unit': 1000.0, 'tax_ids': K_12_tax.ids}),
+                Command.create({'product_id': self.product_a.id, 'quantity': 1, 'price_unit': 500.0, 'tax_ids': K_31_tax.ids}),
+            ],
+            post=True)
         self._assert_export_invoice(invoice, 'standard_fa3_format_invoice_reverse_charge.xml')
-
-        credit_note = invoice._reverse_moves()
-        credit_note.action_post()
-
-        self._assert_export_invoice(credit_note, 'standard_fa3_format_credit_note_reverse_charge.xml')
 
     @freeze_time('2026-01-23')
     def test_payment_logic_partial_mixed_methods(self):
@@ -528,6 +515,18 @@ class TestL10nPlEdi(AccountTestInvoicingCommon, CronMixinCase):
         invoice = self._create_invoice(invoice_line_ids=[invoice_line], partner_id=self.partner_pl.id, post=True)
         xml = invoice._l10n_pl_edi_render_xml()
         self.assertEqual(self._get_xml_value(xml, "//ns:Fa/ns:P_13_9"), '1000.00')
+
+    @freeze_time('2026-01-23')
+    def test_ksef_fa3_non_eu_service_generates_p_13_8(self):
+        """
+        Non-EU service invoices (K_11) must include P_13_8 as the net amount of the supplied service.
+        """
+        non_eu_service_product = self._create_product(name='Non-EU Service', type='service')
+        invoice_line = self._prepare_invoice_line(product_id=non_eu_service_product.id, quantity=1,
+        price_unit=2000.0, tax_ids=[Command.set(self.env['account.chart.template'].ref('vs_ekspu').ids)])
+        invoice = self._create_invoice(invoice_line_ids=[invoice_line], partner_id=self.partner_pl.id, post=True)
+        xml = invoice._l10n_pl_edi_render_xml()
+        self.assertEqual(self._get_xml_value(xml, "//ns:Fa/ns:P_13_8"), '2000.00')
 
     @freeze_time('2026-01-23')
     def test_scenario_correction_values_are_negative(self):
@@ -1035,3 +1034,64 @@ class TestL10nPlEdi(AccountTestInvoicingCommon, CronMixinCase):
             bill.invoice_line_ids.mapped('tax_ids.amount'),
             [23.0, 23.0, 5.0],
         )
+
+    @freeze_time('2026-01-23')
+    def test_scenario_correction_ksef_not_sent(self):
+        """Test that the credit note of an Invoice NOT sent/accepted in KSeF falls back to <NrKSeFN>1</NrKSeFN> tag."""
+        invoice = self.standard_invoice
+        invoice.action_post()
+
+        reversal_wizard = self.env['account.move.reversal'].create({
+            'reason': 'Correction of an invoice',
+            'journal_id': invoice.journal_id.id,
+            'move_ids': invoice.ids,
+        })
+        reversal_wizard.refund_moves()
+        credit_note = invoice.reversal_move_ids
+        credit_note.action_post()
+
+        xml = credit_note._l10n_pl_edi_render_xml()
+        self.assertEqual(self._get_xml_value(xml, "//ns:RodzajFaktury"), 'KOR')
+        self.assertEqual(self._get_xml_value(xml, "//ns:DaneFaKorygowanej/ns:NrKSeFN"), '1')
+        self.assertFalse(self._get_xml_nodes(xml, "//ns:DaneFaKorygowanej/ns:NrKSeF"))
+        self.assertFalse(self._get_xml_nodes(xml, "//ns:DaneFaKorygowanej/ns:NrKSeFFaKorygowanej"))
+
+    @freeze_time('2026-01-23')
+    def test_scenario_correction_ksef_accepted(self):
+        """Test that the credit note of an Invoice already accepted in KSeF use
+        <NrKSeF>1</NrKSeF> and <NrKSeFFaKorygowanej> tags instead of the fallback"""
+        invoice = self.standard_invoice
+        invoice.action_post()
+
+        fake_ksef_number = '5795955811-20260123-123456-78'
+        with (
+            patch.object(KsefApiService, 'open_ksef_session'),
+            patch.object(KsefApiService, 'send_invoice', return_value={'referenceNumber': '999999'}),
+            patch.object(KsefApiService, 'get_invoice_status', return_value={
+                'ksefNumber': fake_ksef_number,
+                'status': {'code': 200},
+            })
+        ):
+            wizard = self.env['account.move.send.wizard'].with_company(self.company).create({
+                'move_id': invoice.id,
+                'extra_edi_checkboxes': {'pl_ksef': {'checked': True}}
+            })
+            wizard.action_send_and_print()
+
+        self.assertEqual(invoice.l10n_pl_edi_status, 'accepted')
+        self.assertEqual(invoice.l10n_pl_edi_number, fake_ksef_number)
+
+        reversal_wizard = self.env['account.move.reversal'].create({
+            'reason': 'Correction of KSeF accepted invoice',
+            'journal_id': invoice.journal_id.id,
+            'move_ids': invoice.ids,
+        })
+        reversal_wizard.refund_moves()
+        credit_note = invoice.reversal_move_ids
+        credit_note.action_post()
+
+        xml = credit_note._l10n_pl_edi_render_xml()
+        self.assertEqual(self._get_xml_value(xml, "//ns:RodzajFaktury"), 'KOR')
+        self.assertEqual(self._get_xml_value(xml, "//ns:DaneFaKorygowanej/ns:NrKSeF"), '1')
+        self.assertEqual(self._get_xml_value(xml, "//ns:DaneFaKorygowanej/ns:NrKSeFFaKorygowanej"), fake_ksef_number)
+        self.assertFalse(self._get_xml_nodes(xml, "//ns:DaneFaKorygowanej/ns:NrKSeFN"))

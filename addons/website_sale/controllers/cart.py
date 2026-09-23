@@ -114,10 +114,35 @@ class Cart(PaymentPortal):
         quantity = int(quantity)  # Do not allow float values in ecommerce by default
 
         product = request.env['product.product'].browse(product_id).exists()
+        if product and no_variant_attribute_value_ids:
+            product = product.with_context(
+                **product._get_product_price_context(
+                    request.env["product.template.attribute.value"].browse(
+                        [int(v) for v in no_variant_attribute_value_ids]
+                    )
+                )
+            )
         if not product or not product._is_add_to_cart_allowed():
             raise UserError(_(
                 "The given product does not exist therefore it cannot be added to cart."
             ))
+
+        if product.type == 'combo':
+            combo_item_products = [
+                product for product in linked_products or [] if product.get('combo_item_id')
+            ]
+            combos_sudo = product.sudo().product_tmpl_id.combo_ids
+            selected_combos_sudo = request.env['product.combo.item'].sudo().browse([
+                combo_item['combo_item_id'] for combo_item in combo_item_products
+            ]).combo_id
+            if (
+                len(combo_item_products) != len(combos_sudo)
+                or set(selected_combos_sudo.ids) != set(combos_sudo.ids)
+            ):
+                raise UserError(_(
+                    "The number of selected combo items must match the number of available"
+                    " combo choices."
+                ))
 
         added_qty_per_line = {}
         values = order_sudo.with_context(skip_cart_verification=True)._cart_add(

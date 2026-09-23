@@ -496,9 +496,12 @@ class SaleOrderLine(models.Model):
         elif dp_state == 'cancel':
             name = _("Down Payment (Cancelled)")
         else:
-            invoice = self._get_invoice_lines().filtered(
+            invoices = self._get_invoice_lines().filtered(
                 lambda aml: aml.quantity >= 0
-            ).move_id.filtered(lambda move: move.move_type == 'out_invoice')
+            ).move_id.filtered(lambda move: move.move_type == "out_invoice")
+            # A reversed and re-issued down payment (Reverse and Create Invoice)
+            # links both invoices to this line; keep the active (non-reversed) one.
+            invoice = invoices.filtered(lambda move: move.payment_state != "reversed") or invoices
             if len(invoice) == 1 and invoice.payment_reference and invoice.invoice_date:
                 name = _(
                     "Down Payment (ref: %(reference)s on %(date)s)",
@@ -1004,7 +1007,16 @@ class SaleOrderLine(models.Model):
     def _prepare_qty_invoiced(self):
         invoiced_qties = defaultdict(float)
         for line in self:
-            for invoice_line in line._get_invoice_lines():
+            invoice_lines = line._get_invoice_lines()
+            for invoice_line in invoice_lines:
+                if line.is_downpayment:
+                    if not line.currency_id.is_zero(sum(invoice_lines.filtered(lambda l: l.move_id.state != 'cancel').mapped('balance'))):
+                        invoiced_qties[line] = 1
+                        line.qty_invoiced = 1
+                    else:
+                        invoiced_qties[line] = 0
+                        line.qty_invoiced = 0
+                    continue
                 if invoice_line.move_id.state != 'cancel' or invoice_line.move_id.payment_state == 'invoicing_legacy':
                     invoice_qty = invoice_line.product_uom_id._compute_quantity(invoice_line.quantity, line.product_uom_id, round=False)
                     if invoice_line.move_id.move_type == 'out_invoice':
@@ -1196,12 +1208,12 @@ class SaleOrderLine(models.Model):
 
             line.untaxed_amount_to_invoice = amount_to_invoice
 
-    @api.depends('discount', 'price_total', 'product_uom_qty', 'qty_delivered', 'qty_invoiced_posted')
+    @api.depends('discount', 'price_total', 'product_uom_qty', 'qty_invoiced_posted')
     def _compute_amount_to_invoice(self):
         for line in self:
             if line.product_uom_qty:
-                uom_qty_to_consider = line.qty_delivered if line.product_id.invoice_policy == 'delivery' else line.product_uom_qty
-                qty_to_invoice = uom_qty_to_consider - line.qty_invoiced_posted
+                # The ordered quantity is what the customer committed to, delivered or not.
+                qty_to_invoice = line.product_uom_qty - line.qty_invoiced_posted
                 unit_price_total = line.price_total / line.product_uom_qty
                 line.amount_to_invoice = unit_price_total * qty_to_invoice
             else:

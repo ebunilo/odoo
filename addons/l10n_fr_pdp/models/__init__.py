@@ -1,3 +1,5 @@
+from . import account_edi_cii
+from . import account_edi_common
 from . import account_edi_proxy_user
 from . import account_edi_ubl
 from . import account_edi_xml_cii_facturx
@@ -6,6 +8,7 @@ from . import account_journal
 from . import account_move
 from . import account_move_send
 from . import account_peppol_response
+from . import account_tax
 from . import ir_attachment
 from . import pdp_flow
 from . import pdp_flow_xml_builder
