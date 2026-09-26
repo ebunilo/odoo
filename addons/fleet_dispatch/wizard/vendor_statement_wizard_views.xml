@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="fleet_dispatch_vendor_statement_view_form" model="ir.ui.view">
+        <field name="name">fleet.dispatch.vendor.statement.form</field>
+        <field name="model">fleet.dispatch.vendor.statement</field>
+        <field name="inherit_id" ref="accounting_pdf_reports.account_common_report_view"/>
+        <field name="mode">primary</field>
+        <field name="arch" type="xml">
+            <xpath expr="//group[1]" position="before">
+                <group>
+                    <field name="partner_id"
+                        options="{'no_create': True}"
+                        context="{'res_partner_search_mode': 'supplier'}"/>
+                </group>
+            </xpath>
+            <xpath expr="//field[@name='target_move']" position="after">
+                <field name="result_selection" invisible="1"/>
+            </xpath>
+            <xpath expr="//footer/button[@name='check_report']" position="after">
+                <button name="action_view_lines" string="View Lines" type="object"
+                    class="btn-secondary" data-hotkey="v"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_fleet_dispatch_vendor_statement" model="ir.actions.act_window">
+        <field name="name">Fuel Vendor Statement</field>
+        <field name="res_model">fleet.dispatch.vendor.statement</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="fleet_dispatch_vendor_statement_view_form"/>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="fleet_dispatch_vendor_statement_menu"
+              name="Fuel Vendor Statement"
+              parent="fleet.menu_fleet_reporting"
+              action="action_fleet_dispatch_vendor_statement"
+              groups="account.group_account_invoice"
+              sequence="20"/>
+
+    <menuitem id="fleet_dispatch_vendor_statement_account_menu"
+              name="Fuel Vendor Statement"
+              parent="accounting_pdf_reports.menu_finance_partner_reports"
+              action="action_fleet_dispatch_vendor_statement"
+              groups="account.group_account_invoice"
+              sequence="10"/>
+
+</odoo>

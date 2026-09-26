@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- Purchase order: link back to the dispatch -->
+    <record id="purchase_order_form_inherit_fleet_dispatch" model="ir.ui.view">
+        <field name="name">purchase.order.form.inherit.fleet.dispatch</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='other_info']/field[@name='origin']" position="after">
+                <field name="dispatch_id" invisible="not dispatch_id"
+                    groups="fleet.fleet_group_user,account.group_account_invoice"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Vendor bill: dispatch, truck and driver -->
+    <record id="view_move_form_inherit_fleet_dispatch" model="ir.ui.view">
+        <field name="name">account.move.form.inherit.fleet.dispatch</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@id='header_right_group']" position="inside">
+                <field name="dispatch_id" invisible="not dispatch_id"
+                    groups="fleet.fleet_group_user,account.group_account_invoice"/>
+                <field name="dispatch_vehicle_id" string="Truck" invisible="not dispatch_id"
+                    groups="fleet.fleet_group_user,account.group_account_invoice"/>
+                <field name="dispatch_driver_id" string="Driver" invisible="not dispatch_id"
+                    groups="fleet.fleet_group_user,account.group_account_invoice"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Journal items opened from the vendor statement wizard -->
+    <record id="view_move_line_list_vendor_statement" model="ir.ui.view">
+        <field name="name">account.move.line.list.vendor.statement</field>
+        <field name="model">account.move.line</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <list string="Vendor Statement" create="0" edit="0" default_order="date, move_id, id">
+                <field name="date"/>
+                <field name="move_id"/>
+                <field name="journal_id" optional="hide"/>
+                <field name="ref" optional="show"/>
+                <field name="name" optional="show"/>
+                <field name="dispatch_id"/>
+                <field name="dispatch_truck_plate"/>
+                <field name="dispatch_driver_id"/>
+                <field name="company_currency_id" column_invisible="1"/>
+                <field name="debit" sum="Total Debit"/>
+                <field name="credit" sum="Total Credit"/>
+                <field name="balance" sum="Balance"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Partner form: shortcut to the fuel vendor statement -->
+    <record id="view_partner_form_inherit_fleet_dispatch" model="ir.ui.view">
+        <field name="name">res.partner.form.inherit.fleet.dispatch</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <button name="%(fleet_dispatch.action_fleet_dispatch_vendor_statement)d"
+                    type="action"
+                    class="oe_stat_button"
+                    icon="fa-truck"
+                    string="Fuel Statement"
+                    context="{'default_partner_id': id}"
+                    invisible="supplier_rank == 0"
+                    groups="account.group_account_invoice"/>
+            </div>
+        </field>
+    </record>
+
+    <!-- Vehicle form: dispatches smart button -->
+    <record id="fleet_vehicle_view_form_inherit_fleet_dispatch" model="ir.ui.view">
+        <field name="name">fleet.vehicle.form.inherit.fleet.dispatch</field>
+        <field name="model">fleet.vehicle</field>
+        <field name="inherit_id" ref="fleet.fleet_vehicle_view_form"/>
+        <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <button name="action_view_dispatches"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-road">
+                    <field name="dispatch_count" widget="statinfo" string="Dispatches"/>
+                </button>
+            </div>
+        </field>
+    </record>
+
+</odoo>

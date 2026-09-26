@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Trucks show everything fleet shows for cars. -->
+    <record id="fleet_vehicle_view_form_truck" model="ir.ui.view">
+        <field name="name">fleet.vehicle.form.truck</field>
+        <field name="model">fleet.vehicle</field>
+        <field name="inherit_id" ref="fleet.fleet_vehicle_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[field[@name='odometer_count']]" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </xpath>
+            <field name="acquisition_date" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </field>
+            <field name="write_off_date" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </field>
+            <xpath expr="//label[@for='odometer']" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </xpath>
+            <xpath expr="//div[field[@name='odometer']]" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </xpath>
+            <xpath expr="//label[@for='plan_to_change_car']" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </xpath>
+            <field name="plan_to_change_car" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </field>
+            <field name="seats" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </field>
+            <field name="doors" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </field>
+            <field name="trailer_hook" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </field>
+            <xpath expr="//group[field[@name='fuel_type']]" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </xpath>
+            <field name="transmission" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </field>
+        </field>
+    </record>
+
+    <record id="fleet_vehicle_view_search_truck" model="ir.ui.view">
+        <field name="name">fleet.vehicle.search.truck</field>
+        <field name="model">fleet.vehicle</field>
+        <field name="inherit_id" ref="fleet.fleet_vehicle_view_search"/>
+        <field name="arch" type="xml">
+            <filter name="available" position="attributes">
+                <attribute name="domain">['&amp;', ('future_driver_id', '=', False), '|', ('driver_id', '=', False), '|', '&amp;', ('plan_to_change_car', '=', True), ('vehicle_type', 'in', ('car', 'truck')), '&amp;', ('plan_to_change_bike', '=', True), ('vehicle_type', '=', 'bike')]</attribute>
+            </filter>
+            <filter name="cars" position="after">
+                <filter string="Trucks" name="trucks" domain="[('vehicle_type', '=', 'truck')]"/>
+            </filter>
+            <filter name="planned" position="attributes">
+                <attribute name="domain">['|', '&amp;', ('vehicle_type', '=', 'bike'), ('plan_to_change_bike', '=', True), '&amp;', ('vehicle_type', 'in', ('car', 'truck')), ('plan_to_change_car', '=', True)]</attribute>
+            </filter>
+        </field>
+    </record>
+
+    <record id="fleet_vehicle_model_view_form_truck" model="ir.ui.view">
+        <field name="name">fleet.vehicle.model.form.truck</field>
+        <field name="model">fleet.vehicle.model</field>
+        <field name="inherit_id" ref="fleet.fleet_vehicle_model_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[field[@name='seats']]" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </xpath>
+            <xpath expr="//group[@name='group_engine']" position="attributes">
+                <attribute name="invisible">vehicle_type not in ('car', 'truck')</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>
