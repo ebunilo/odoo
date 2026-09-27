@@ -51,3 +51,7 @@ package.json
 /man/
 /share/
 /src/
+
+fleet.xlsx
+fleet_import/
+
