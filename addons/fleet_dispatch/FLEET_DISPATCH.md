@@ -5,16 +5,16 @@
 For every dispatch the module:
 
 - records the truck, driver, trip, diesel dispensed and the cash advance the fuel station gave the driver;
-- on confirmation, raises a **purchase order** for the fuel station and a **vendor bill**, so the amount owed to the station is in the ledger straight away;
+- on confirmation, posts a **vendor bill** to the fuel station, so the amount owed to the station is in the ledger straight away. There's no purchase order step;
 - prints a **dispatch document** (trip sheet) with signature blocks;
 - gives each fuel station an on-demand **vendor statement** with opening balance, bills, payments, running balance, and the truck and driver on every trip.
 
 | | |
 | --- | --- |
 | Technical name | `fleet_dispatch` |
-| Version | 1.1 |
+| Version | 1.2 |
 | Category | Human Resources/Fleet |
-| Depends on | `fleet`, `purchase`, `accounting_pdf_reports` |
+| Depends on | `fleet`, `account`, `accounting_pdf_reports` |
 | License | LGPL-3 |
 
 `accounting_pdf_reports` is part of the Odoo Mates accounting suite (`om_account_accountant`) in `addons/`. The vendor statement reuses its partner-report wizard and its `account.move.line._query_get()` helper.
@@ -57,8 +57,8 @@ The vehicle form also gets a **Dispatches** smart button that lists that truck's
 
 | Record | Details |
 | --- | --- |
-| Product **Diesel** (`DISP-DIESEL`) | Service, unit Litre, billed on ordered quantities, no taxes |
-| Product **Driver Cash Advance** (`DISP-ADVANCE`) | Service, billed on ordered quantities, no taxes |
+| Product **Diesel** (`DISP-DIESEL`) | Service, unit Litre, no taxes |
+| Product **Driver Cash Advance** (`DISP-ADVANCE`) | Service, no taxes |
 | Sequence `fleet.dispatch` | References like `DISP/2026/00001` |
 
 If a company hasn't chosen products in Settings, these defaults are used.
@@ -69,7 +69,6 @@ If a company hasn't chosen products in Settings, these defaults are used.
    - **Diesel:** a *Fuel Expense* account.
    - **Driver Cash Advance:** a *Trip Expenses* account.
 2. **The fuel station** as a vendor contact.
-3. **A warehouse for the company.** The Purchase app needs a receipt operation type to create a purchase order. The two products are services, so no receipt is actually generated.
 
 ---
 
@@ -93,7 +92,7 @@ If a company hasn't chosen products in Settings, these defaults are used.
 | | `fuel_cost` | = litres × price (computed) |
 | Cash Advance | `cash_advance` | Money the station gave the driver. Required, must be ≥ 0. |
 | | `total_reimbursable` | = fuel cost + cash advance. This is what the dispatch owes the station. |
-| Accounting | `purchase_order_id`, `vendor_bill_id` | Filled in on confirmation. Shown as smart buttons. |
+| Accounting | `vendor_bill_id` | Filled in on confirmation. Shown as a smart button. |
 | | `bill_payment_state` | The bill's payment status. A green **Paid** ribbon shows when it's paid. |
 | | `notes` | Free text |
 
@@ -109,11 +108,11 @@ Draft ──Confirm Dispatch──▶ Dispatched ──Mark as Returned──▶
 
 | Button | From | What happens |
 | --- | --- | --- |
-| **Confirm Dispatch** | Draft | Checks litres > 0, price > 0 and advance ≥ 0. Creates the PO and bill (see §4), then sets *Dispatched*. |
+| **Confirm Dispatch** | Draft | Checks litres > 0, price > 0 and advance ≥ 0. Creates the vendor bill (see §4), then sets *Dispatched*. |
 | **Mark as Returned** | Dispatched | The truck is back. |
 | **Mark as Done** | Returned | Trip closed. A done dispatch can't be cancelled. |
 | **Cancel** | Draft, Dispatched, Returned | Cancels or reverses the accounting documents (see §4), then sets *Cancelled*. |
-| **Reset to Draft** | Cancelled | Clears the PO and bill links. The next confirmation creates new documents. |
+| **Reset to Draft** | Cancelled | Clears the bill link. The next confirmation creates a new bill. |
 | **Print** | Any state except Draft | Dispatch document PDF (see §5) |
 | **Vendor Statement** | Any | Opens the statement wizard for this dispatch's fuel station |
 
@@ -131,19 +130,22 @@ Draft ──Confirm Dispatch──▶ Dispatched ──Mark as Returned──▶
 
 For each dispatch, in the same transaction:
 
-1. **Purchase order** to the fuel station:
-   - **Settings:** vendor reference and source document = the dispatch number, order date = the dispatch date, and a `dispatch_id` link back.
+1. A **vendor bill** is created for the fuel station:
+   - **Header:** invoice and accounting date = the dispatch date; reference and source document = the dispatch number; a `dispatch_id` link back.
    - **Lines:**
 
      | Line | Product | Qty × Price | Description |
-     |---|---|---|---|
+     | --- | --- | --- | --- |
      | Diesel | Fuel product | litres × price/L | `DISP/2026/00012 – Diesel 300 L – Truck BZR 143XC / Driver John Aninwene` |
      | Cash advance | Advance product | 1 × advance | `DISP/2026/00012 – Cash advance to driver – Truck … / Driver …`. Skipped if the advance is 0. |
-2. **The PO is confirmed**, and a **vendor bill** is created from it. The bill takes the dispatch date as invoice and accounting date, and the dispatch number as reference. It's linked to the dispatch.
-3. **The bill is posted** if *Auto-post Dispatch Bills* is on.
-4. A chatter message links the PO and the bill.
 
-This runs as superuser, so a fleet user can confirm dispatches without any purchase or accounting rights.
+     Each line's expense account and taxes come from its product.
+2. **The bill is posted** if *Auto-post Dispatch Bills* is on.
+3. A chatter message links the bill.
+
+No purchase order is created, and the company doesn't need a warehouse.
+
+This runs as superuser, so a fleet user can confirm dispatches without any accounting rights.
 
 **Resulting journal entry** (example: 300 L × 800 plus a 20,000 advance):
 
@@ -160,15 +162,14 @@ Paying the station with the standard **Register Payment** on the bill books *Dr 
 | Bill state | Result |
 | --- | --- |
 | **Paid or partly paid** | Cancellation is refused. Unreconcile the payment first. |
-| **Posted, open period** | Bill reset to draft and cancelled. PO cancelled. |
-| **Posted, locked period** (date on or before the user's fiscal lock date, e.g. set by `om_fiscal_year`) | Bill kept and reversed by a credit note dated today, with reference "Reversal of DISP/…". The PO stays confirmed for audit. |
-| **Draft** (auto-post off) | Bill cancelled. PO cancelled. |
+| **Posted, open period** | Bill reset to draft and cancelled. |
+| **Posted, locked period** (date on or before the user's fiscal lock date, e.g. set by `om_fiscal_year`) | Bill kept and reversed by a credit note dated today, with reference "Reversal of DISP/…". |
+| **Draft** (auto-post off) | Bill cancelled. |
 
 Each outcome is noted in the chatter.
 
 ### Links on accounting records
 
-- **Purchase order:** a **Dispatch** field under *Other Information*.
 - **Vendor bill / journal entry:** **Dispatch**, **Truck** and **Driver** in the header. The truck and driver are stored, so bills can be grouped by them.
 - **Journal items:** related **Dispatch**, **Truck No.** and **Driver** fields, used by the statement's *View Lines* list.
 
@@ -182,7 +183,7 @@ Each outcome is noted in the chatter.
 - **Layout:** the company's external layout (letterhead). The file is named `Dispatch - DISP-2026-00012.pdf`.
 - **Contents:**
   - dispatch number, date and status;
-  - PO number and vendor bill number;
+  - vendor bill number;
   - truck, plate, driver, odometer and company;
   - trip: origin, destination, cargo;
   - fuelling: station, litres, price per litre, fuel cost;
@@ -193,6 +194,8 @@ Each outcome is noted in the chatter.
 ### Fuel Vendor Statement
 
 A statement of account for one fuel station, printed landscape on the company letterhead. It's meant to be sent to the vendor or used to reconcile with them.
+
+If the station is a branch contact under a parent company (for example "MRS Aba - Portharcourt Road" under "MRS Filling Station"), the statement is for the **parent company** and covers all its branches. Odoo books the amount owed and the payments on the parent company, so that's the only level at which the balance is correct. The Dispatch No. and Truck No. columns show which trip each line belongs to.
 
 **Opened from:**
 
@@ -222,7 +225,7 @@ The balance is *debit − credit*, so **a negative balance is the amount owed to
 ## 6. Reporting
 
 - **Fleet ▸ Reporting ▸ Dispatch Analysis** (fleet managers): graph and pivot views, grouped by vehicle by default. Measures include litres, fuel cost, cash advance and total reimbursable.
-- **Dispatch list totals:** litres, cash advance, fuel cost and total reimbursable. Optional columns: plate, PO, bill and payment status.
+- **Dispatch list totals:** litres, cash advance, fuel cost and total reimbursable. Optional columns: plate, bill and payment status.
 - **Search filters:** Draft, Dispatched, Returned, Done; *Unpaid Bills*, *Paid Bills*; *Today*, *This Month*.
 - **Group by:** vehicle, driver, fuel station, month, status.
 
@@ -250,10 +253,9 @@ fleet_dispatch/
 │   ├── fleet_dispatch_data.xml        dispatch sequence (noupdate)
 │   └── product_data.xml               Diesel and Driver Cash Advance products (noupdate)
 ├── models/
-│   ├── fleet_dispatch.py              fleet.dispatch: fields, workflow, PO/bill creation and cancellation
+│   ├── fleet_dispatch.py              fleet.dispatch: fields, workflow, vendor bill creation and cancellation
 │   ├── fleet_vehicle.py               dispatch_count, action_view_dispatches, truck driver-change flags
 │   ├── fleet_vehicle_model.py         vehicle_type += truck
-│   ├── purchase_order.py              purchase.order.dispatch_id
 │   ├── account_move.py                account.move dispatch/truck/driver; account.move.line related fields
 │   ├── res_company.py                 dispatch products, auto-post flag
 │   └── res_config_settings.py         settings fields
@@ -269,7 +271,7 @@ fleet_dispatch/
 ├── views/
 │   ├── fleet_dispatch_views.xml       form, list, kanban, search, pivot, graph, actions, menus
 │   ├── fleet_vehicle_views.xml        truck visibility on vehicle/model forms, Trucks filter
-│   ├── purchase_account_views.xml     PO/bill links, statement line list, partner and vehicle buttons
+│   ├── account_views.xml              bill links, statement line list, partner and vehicle buttons
 │   └── res_config_settings_views.xml  Dispatch Accounting settings block
 ├── security/
 │   ├── ir.model.access.csv
@@ -281,9 +283,9 @@ fleet_dispatch/
 
 **Extension points on `fleet.dispatch`:**
 
-- `_prepare_purchase_order_vals()` and `_prepare_po_line_vals()`: change the PO or add lines, such as tolls.
+- `_prepare_vendor_bill_vals()` and `_prepare_bill_line_vals()`: change the bill or add lines, such as tolls.
 - `_get_dispatch_products()`: choose products per dispatch.
-- `_create_vendor_documents()` and `_cancel_vendor_documents()`: the accounting logic.
+- `_create_vendor_bill()` and `_cancel_vendor_documents()`: the accounting logic.
 
 ---
 
@@ -303,7 +305,8 @@ The live database is **`dev`**. The local server runs on port 8069 and serves ev
 **What the tests cover:**
 
 - Accounting:
-  - PO and posted bill created on confirmation, with correct amounts and references;
+  - posted vendor bill created on confirmation, with correct accounts, amounts and references;
+  - confirmation works for a company without a warehouse;
   - a zero advance gives a single line;
   - fields are locked after confirmation;
   - cancelling an unpaid dispatch cancels its documents;
@@ -319,7 +322,7 @@ The live database is **`dev`**. The local server runs on port 8069 and serves ev
 **Manual check:**
 
 1. Create a dispatch (300 L × 800 + 20,000 advance) and confirm it.
-2. Open the PO and bill smart buttons. The journal items should be Dr Fuel 240,000, Dr Trip Expenses 20,000, Cr Payable 260,000.
+2. Open the Vendor Bill smart button. The journal items should be Dr Fuel 240,000, Dr Trip Expenses 20,000, Cr Payable 260,000.
 3. Print the dispatch document.
 4. Register a partial payment, then run the Fuel Vendor Statement. It should show the bill as a credit, the payment as a debit, the right running balance, and the truck and driver on the trip line.
 

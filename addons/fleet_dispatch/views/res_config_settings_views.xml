@@ -9,7 +9,7 @@
             <xpath expr="//app[@name='fleet']" position="inside">
                 <block title="Dispatch Accounting" id="fleet_dispatch_accounting">
                     <setting string="Dispatch Products"
-                        help="Products used on the purchase order raised for each dispatch. Their expense accounts receive the fuel cost and the driver cash advance.">
+                        help="Products used on the vendor bill posted for each dispatch. Their expense accounts receive the fuel cost and the driver cash advance.">
                         <div class="content-group mt16">
                             <div class="row">
                                 <label for="dispatch_fuel_product_id" string="Diesel" class="col-lg-4 o_light_label"/>

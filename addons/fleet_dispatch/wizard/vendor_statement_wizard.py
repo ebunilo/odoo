@@ -37,7 +37,7 @@ class FleetDispatchVendorStatement(models.TransientModel):
     def action_view_lines(self):
         self.ensure_one()
         domain = [
-            ('partner_id', '=', self.partner_id.id),
+            ('partner_id', '=', self.partner_id.commercial_partner_id.id),
             ('account_id.account_type', 'in', self._get_account_types()),
             ('company_id', '=', self.company_id.id),
             ('journal_id', 'in', self.journal_ids.ids),
@@ -50,7 +50,7 @@ class FleetDispatchVendorStatement(models.TransientModel):
             domain.append(('date', '<=', self.date_to))
         return {
             'type': 'ir.actions.act_window',
-            'name': self.env._('Statement lines: %s', self.partner_id.display_name),
+            'name': self.env._('Statement lines: %s', self.partner_id.commercial_partner_id.display_name),
             'res_model': 'account.move.line',
             'view_mode': 'list',
             'views': [(self.env.ref('fleet_dispatch.view_move_line_list_vendor_statement').id, 'list')],

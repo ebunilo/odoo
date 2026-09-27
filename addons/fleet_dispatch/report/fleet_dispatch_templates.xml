@@ -16,10 +16,6 @@
                         <strong>Status:</strong><br/>
                         <span t-field="o.state"/>
                     </div>
-                    <div class="col-3" t-if="o.purchase_order_id">
-                        <strong>Purchase Order:</strong><br/>
-                        <span t-field="o.purchase_order_id.name"/>
-                    </div>
                     <div class="col-3" t-if="o.vendor_bill_id">
                         <strong>Vendor Bill:</strong><br/>
                         <span t-field="o.vendor_bill_id.name"/>

@@ -41,6 +41,9 @@ class ReportVendorStatement(models.AbstractModel):
         return self.env['account.move.line'].browse(r[0] for r in self.env.cr.fetchall())
 
     def _get_statement(self, form, partner):
+        # Payables are booked on the commercial partner, so a station that is
+        # a branch contact is reported under its parent company.
+        partner = partner.commercial_partner_id
         opening = sum(l.debit - l.credit for l in self._get_move_lines(form, partner, initial_bal=True))
         balance = opening
         lines = []
@@ -86,7 +89,7 @@ class ReportVendorStatement(models.AbstractModel):
         if not data or not data.get('form'):
             raise UserError(_('Form content is missing, this report cannot be printed.'))
         form = data['form']
-        partner = self.env['res.partner'].browse(form['partner_id'])
+        partner = self.env['res.partner'].browse(form['partner_id']).commercial_partner_id
         company = self.env['res.company'].browse(form['company_id'][0])
         return {
             'doc_ids': partner.ids,

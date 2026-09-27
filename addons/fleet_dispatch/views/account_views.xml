@@ -1,19 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
-    <!-- Purchase order: link back to the dispatch -->
-    <record id="purchase_order_form_inherit_fleet_dispatch" model="ir.ui.view">
-        <field name="name">purchase.order.form.inherit.fleet.dispatch</field>
-        <field name="model">purchase.order</field>
-        <field name="inherit_id" ref="purchase.purchase_order_form"/>
-        <field name="arch" type="xml">
-            <xpath expr="//group[@name='other_info']/field[@name='origin']" position="after">
-                <field name="dispatch_id" invisible="not dispatch_id"
-                    groups="fleet.fleet_group_user,account.group_account_invoice"/>
-            </xpath>
-        </field>
-    </record>
-
     <!-- Vendor bill: dispatch, truck and driver -->
     <record id="view_move_form_inherit_fleet_dispatch" model="ir.ui.view">
         <field name="name">account.move.form.inherit.fleet.dispatch</field>

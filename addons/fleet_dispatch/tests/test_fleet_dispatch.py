@@ -14,8 +14,7 @@ class TestFleetDispatch(AccountTestInvoicingCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.env.user.group_ids |= cls.env.ref('fleet.fleet_group_manager') \
-            | cls.env.ref('purchase.group_purchase_user')
+        cls.env.user.group_ids |= cls.env.ref('fleet.fleet_group_manager')
         cls.fuel_expense = cls.company_data['default_account_expense']
         cls.trip_expense = cls.fuel_expense.copy({'code': '610099', 'name': 'Trip Expenses'})
         cls.diesel = cls.env.ref('fleet_dispatch.product_dispatch_diesel')
@@ -67,18 +66,17 @@ class TestFleetDispatch(AccountTestInvoicingCommon):
         report = self.env['report.fleet_dispatch.report_vendor_statement']
         return report._get_statement(data['form'], self.station)
 
-    def test_confirm_creates_po_and_posted_bill(self):
+    def test_confirm_posts_vendor_bill(self):
         dispatch = self._create_dispatch()
         dispatch.action_dispatch()
 
-        order = dispatch.purchase_order_id
         bill = dispatch.vendor_bill_id
         self.assertEqual(dispatch.state, 'dispatched')
-        self.assertEqual(order.state, 'purchase')
-        self.assertEqual(order.origin, dispatch.name)
-        self.assertEqual(order.dispatch_id, dispatch)
-        self.assertEqual(len(order.order_line), 2)
+        self.assertEqual(bill.move_type, 'in_invoice')
+        self.assertEqual(bill.partner_id, self.station)
         self.assertEqual(bill.state, 'posted')
+        self.assertEqual(bill.invoice_origin, dispatch.name)
+        self.assertEqual(len(bill.invoice_line_ids), 2)
         self.assertEqual(bill.ref, dispatch.name)
         self.assertEqual(bill.dispatch_id, dispatch)
         self.assertEqual(bill.invoice_date, dispatch.dispatch_date)
@@ -98,7 +96,7 @@ class TestFleetDispatch(AccountTestInvoicingCommon):
     def test_zero_advance_single_line(self):
         dispatch = self._create_dispatch(cash_advance=0.0)
         dispatch.action_dispatch()
-        self.assertEqual(len(dispatch.purchase_order_id.order_line), 1)
+        self.assertEqual(len(dispatch.vendor_bill_id.invoice_line_ids), 1)
         self.assertAlmostEqual(dispatch.vendor_bill_id.amount_total, 240000.0)
 
     def test_locked_fields_after_confirm(self):
@@ -111,16 +109,25 @@ class TestFleetDispatch(AccountTestInvoicingCommon):
     def test_cancel_unpaid_cancels_documents(self):
         dispatch = self._create_dispatch()
         dispatch.action_dispatch()
-        order, bill = dispatch.purchase_order_id, dispatch.vendor_bill_id
+        bill = dispatch.vendor_bill_id
         dispatch.action_cancel()
         self.assertEqual(dispatch.state, 'cancelled')
         self.assertEqual(bill.state, 'cancel')
-        self.assertEqual(order.state, 'cancel')
 
         dispatch.action_reset_draft()
-        self.assertFalse(dispatch.purchase_order_id)
+        self.assertFalse(dispatch.vendor_bill_id)
         dispatch.action_dispatch()
-        self.assertNotEqual(dispatch.purchase_order_id, order)
+        self.assertEqual(dispatch.vendor_bill_id.state, 'posted')
+        self.assertNotEqual(dispatch.vendor_bill_id, bill)
+
+    def test_confirm_without_warehouse(self):
+        # Billing no longer goes through purchase orders, so a company
+        # without a warehouse can confirm dispatches.
+        if 'stock.warehouse' in self.env:
+            self.env['stock.warehouse'].search([('company_id', '=', self.env.company.id)]).active = False
+        dispatch = self._create_dispatch()
+        dispatch.action_dispatch()
+        self.assertEqual(dispatch.vendor_bill_id.state, 'posted')
 
     def test_cancel_paid_bill_blocked(self):
         dispatch = self._create_dispatch()
@@ -160,6 +167,26 @@ class TestFleetDispatch(AccountTestInvoicingCommon):
         self.assertAlmostEqual(st['lines'][-1]['balance'], st['closing'])
         self.assertEqual(st['trucks'][0][1]['trips'], 2)
         self.assertAlmostEqual(st['trucks'][0][1]['litres'], 400.0)
+
+    def test_vendor_statement_branch_station(self):
+        # Stations recorded as branch contacts: the payable sits on the parent
+        # company, so the statement for either branch covers both.
+        parent = self.env['res.partner'].create({'name': 'Mega Fuel Ltd', 'is_company': True})
+        branch_a = self.env['res.partner'].create({'name': 'Mega Fuel - Asaba', 'parent_id': parent.id})
+        branch_b = self.env['res.partner'].create({'name': 'Mega Fuel - Aba', 'parent_id': parent.id})
+        first = self._create_dispatch(fuel_station_id=branch_a.id)
+        second = self._create_dispatch(fuel_station_id=branch_b.id, cash_advance=0.0)
+        (first | second).action_dispatch()
+
+        self.station = branch_a
+        st = self._statement()
+        self.assertEqual(st['partner'], parent)
+        self.assertEqual([l['dispatch'] for l in st['lines']], [first.name, second.name])
+        self.assertAlmostEqual(st['closing'], -(260000.0 + 240000.0))
+
+        wizard = self.env['fleet.dispatch.vendor.statement'].create({'partner_id': branch_b.id})
+        lines = self.env['account.move.line'].search(wizard.action_view_lines()['domain'])
+        self.assertEqual(lines.move_id, first.vendor_bill_id | second.vendor_bill_id)
 
     def test_reports_render(self):
         dispatch = self._create_dispatch()

@@ -47,18 +47,6 @@
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_purchase_order"
-                            type="object"
-                            class="oe_stat_button"
-                            icon="fa-shopping-cart"
-                            invisible="not purchase_order_id"
-                            groups="purchase.group_purchase_user">
-                            <div class="o_stat_info">
-                                <span class="o_stat_text">Purchase Order</span>
-                                <field name="purchase_order_id" readonly="1" class="o_stat_value"
-                                    options="{'no_open': True}"/>
-                            </div>
-                        </button>
                         <button name="action_view_vendor_bill"
                             type="object"
                             class="oe_stat_button"
@@ -161,7 +149,6 @@
                 <field name="fuel_cost" sum="Total Fuel Cost" widget="monetary" optional="show"/>
                 <field name="total_reimbursable" sum="Total Reimbursable" widget="monetary"/>
                 <field name="currency_id" column_invisible="True"/>
-                <field name="purchase_order_id" optional="hide"/>
                 <field name="vendor_bill_id" optional="hide"/>
                 <field name="bill_payment_state" widget="badge" optional="show"
                     decoration-success="bill_payment_state in ('paid', 'in_payment')"
