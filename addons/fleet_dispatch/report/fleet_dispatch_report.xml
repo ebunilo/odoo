@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="action_report_fleet_dispatch" model="ir.actions.report">
+        <field name="name">Dispatch Document</field>
+        <field name="model">fleet.dispatch</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">fleet_dispatch.report_fleet_dispatch</field>
+        <field name="report_file">fleet_dispatch.report_fleet_dispatch</field>
+        <field name="print_report_name">'Dispatch - %s' % (object.name or '').replace('/', '-')</field>
+        <field name="binding_model_id" ref="model_fleet_dispatch"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <record id="action_report_vendor_statement" model="ir.actions.report">
+        <field name="name">Fuel Vendor Statement</field>
+        <field name="model">fleet.dispatch.vendor.statement</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">fleet_dispatch.report_vendor_statement</field>
+        <field name="report_file">fleet_dispatch.report_vendor_statement</field>
+        <field name="print_report_name">'Vendor Statement'</field>
+    </record>
+
+</odoo>

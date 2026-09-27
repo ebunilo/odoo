@@ -1,3 +1,6 @@
 id,name,model_id/id,group_id/id,perm_read,perm_write,perm_create,perm_unlink
 fleet_dispatch_access_user,fleet.dispatch user,model_fleet_dispatch,fleet.fleet_group_user,1,1,1,0
 fleet_dispatch_access_manager,fleet.dispatch manager,model_fleet_dispatch,fleet.fleet_group_manager,1,1,1,1
+fleet_dispatch_access_account,fleet.dispatch accountant,model_fleet_dispatch,account.group_account_invoice,1,0,0,0
+fleet_dispatch_vendor_statement_access_user,fleet.dispatch.vendor.statement user,model_fleet_dispatch_vendor_statement,fleet.fleet_group_user,1,1,1,1
+fleet_dispatch_vendor_statement_access_account,fleet.dispatch.vendor.statement accountant,model_fleet_dispatch_vendor_statement,account.group_account_invoice,1,1,1,1

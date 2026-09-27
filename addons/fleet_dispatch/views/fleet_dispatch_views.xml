@@ -33,10 +33,35 @@
                         name="action_reset_draft"
                         type="object"
                         invisible="state != 'cancelled'"/>
+                    <button string="Print"
+                        name="%(fleet_dispatch.action_report_fleet_dispatch)d"
+                        type="action"
+                        invisible="state == 'draft'"/>
+                    <button string="Vendor Statement"
+                        name="action_open_vendor_statement"
+                        type="object"
+                        groups="account.group_account_invoice"
+                        invisible="state == 'draft'"/>
                     <field name="state" widget="statusbar"
                         statusbar_visible="draft,dispatched,returned,done"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_vendor_bill"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-pencil-square-o"
+                            invisible="not vendor_bill_id"
+                            groups="account.group_account_invoice">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Vendor Bill</span>
+                                <field name="vendor_bill_id" readonly="1" class="o_stat_value"
+                                    options="{'no_open': True}"/>
+                            </div>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Paid" bg_color="text-bg-success"
+                        invisible="bill_payment_state not in ('paid', 'in_payment')"/>
                     <field name="currency_id" invisible="1"/>
                     <div class="oe_title">
                         <label for="name"/>
@@ -46,12 +71,13 @@
                     <group col="2">
                         <!-- Left: Vehicle & Driver -->
                         <group string="Vehicle &amp; Driver">
-                            <field name="vehicle_id"/>
-                            <field name="driver_id" widget="many2one_avatar"/>
-                            <field name="dispatch_date"/>
+                            <field name="vehicle_id" readonly="state != 'draft'"/>
+                            <field name="truck_plate"/>
+                            <field name="driver_id" widget="many2one_avatar" readonly="state != 'draft'"/>
+                            <field name="dispatch_date" readonly="state != 'draft'"/>
                             <field name="company_id"
                                 groups="base.group_multi_company"
-                                placeholder="Visible to all"/>
+                                readonly="state != 'draft'"/>
                         </group>
                         <!-- Right: Trip Details -->
                         <group string="Trip Details">
@@ -69,15 +95,22 @@
                     <group col="2">
                         <!-- Left: Fuelling -->
                         <group string="Fuelling">
-                            <field name="fuel_station_id" widget="many2one_avatar"/>
-                            <field name="diesel_litres"/>
-                            <field name="fuel_price_per_litre" widget="monetary"/>
+                            <field name="fuel_station_id" widget="many2one_avatar"
+                                context="{'res_partner_search_mode': 'supplier'}"
+                                readonly="state != 'draft'"/>
+                            <field name="diesel_litres" readonly="state != 'draft'"/>
+                            <field name="fuel_price_per_litre" widget="monetary" readonly="state != 'draft'"/>
                             <field name="fuel_cost" widget="monetary"/>
                         </group>
                         <!-- Right: Cash Advance & Totals -->
                         <group string="Cash Advance &amp; Reimbursement">
-                            <field name="cash_advance" widget="monetary"/>
+                            <field name="cash_advance" widget="monetary" readonly="state != 'draft'"/>
                             <field name="total_reimbursable" widget="monetary"/>
+                            <field name="bill_payment_state" widget="badge"
+                                invisible="not vendor_bill_id"
+                                decoration-success="bill_payment_state in ('paid', 'in_payment')"
+                                decoration-warning="bill_payment_state == 'partial'"
+                                decoration-danger="bill_payment_state == 'not_paid'"/>
                         </group>
                     </group>
 
@@ -107,6 +140,7 @@
                 <field name="name" readonly="1" class="fw-bold"/>
                 <field name="dispatch_date"/>
                 <field name="vehicle_id" widget="many2one_avatar"/>
+                <field name="truck_plate" optional="show"/>
                 <field name="driver_id" widget="many2one_avatar"/>
                 <field name="fuel_station_id"/>
                 <field name="destination"/>
@@ -115,6 +149,10 @@
                 <field name="fuel_cost" sum="Total Fuel Cost" widget="monetary" optional="show"/>
                 <field name="total_reimbursable" sum="Total Reimbursable" widget="monetary"/>
                 <field name="currency_id" column_invisible="True"/>
+                <field name="vendor_bill_id" optional="hide"/>
+                <field name="bill_payment_state" widget="badge" optional="show"
+                    decoration-success="bill_payment_state in ('paid', 'in_payment')"
+                    decoration-warning="bill_payment_state == 'partial'"/>
                 <field name="state" widget="badge"
                     decoration-info="state == 'draft'"
                     decoration-warning="state == 'dispatched'"
@@ -174,7 +212,7 @@
             <search string="Dispatches">
                 <field name="name"/>
                 <field name="vehicle_id" string="Truck"
-                    filter_domain="[('vehicle_id.name', 'ilike', self)]"/>
+                    filter_domain="['|', ('vehicle_id.name', 'ilike', self), ('truck_plate', 'ilike', self)]"/>
                 <field name="driver_id" string="Driver"
                     filter_domain="[('driver_id', 'child_of', self)]"/>
                 <field name="fuel_station_id" string="Fuel Station"
@@ -185,6 +223,11 @@
                 <filter string="Dispatched"  name="dispatched" domain="[('state', '=', 'dispatched')]"/>
                 <filter string="Returned"    name="returned"   domain="[('state', '=', 'returned')]"/>
                 <filter string="Done"        name="done"       domain="[('state', '=', 'done')]"/>
+                <separator/>
+                <filter string="Unpaid Bills" name="unpaid"
+                    domain="[('vendor_bill_id', '!=', False), ('bill_payment_state', 'in', ('not_paid', 'partial'))]"/>
+                <filter string="Paid Bills"   name="paid"
+                    domain="[('bill_payment_state', 'in', ('paid', 'in_payment'))]"/>
                 <separator/>
                 <filter string="Today"       name="today"
                     domain="[('dispatch_date', '=', context_today().strftime('%Y-%m-%d'))]"/>
@@ -252,17 +295,6 @@
                 vendor can be reimbursed accurately.
             </p>
         </field>
-    </record>
-
-    <!-- ════════════════════════════════════════════════════════
-         SEQUENCE
-    ════════════════════════════════════════════════════════ -->
-    <record id="seq_fleet_dispatch" model="ir.sequence">
-        <field name="name">Fleet Dispatch</field>
-        <field name="code">fleet.dispatch</field>
-        <field name="prefix">DISP/%(year)s/</field>
-        <field name="padding">5</field>
-        <field name="company_id" eval="False"/>
     </record>
 
     <!-- ════════════════════════════════════════════════════════

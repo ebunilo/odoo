@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <template id="report_fleet_dispatch_document">
+        <t t-call="web.external_layout">
+            <div class="page">
+                <h2>
+                    Dispatch Document <span t-field="o.name"/>
+                </h2>
+                <div class="row mt-3 mb-3">
+                    <div class="col-3">
+                        <strong>Date:</strong><br/>
+                        <span t-field="o.dispatch_date"/>
+                    </div>
+                    <div class="col-3">
+                        <strong>Status:</strong><br/>
+                        <span t-field="o.state"/>
+                    </div>
+                    <div class="col-3" t-if="o.vendor_bill_id">
+                        <strong>Vendor Bill:</strong><br/>
+                        <span t-field="o.vendor_bill_id.name"/>
+                    </div>
+                </div>
+
+                <table class="table table-sm table-bordered">
+                    <thead>
+                        <tr><th colspan="2">Truck &amp; Driver</th><th colspan="2">Trip</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Truck</strong></td>
+                            <td><span t-field="o.vehicle_id.display_name"/></td>
+                            <td><strong>Origin</strong></td>
+                            <td><span t-field="o.origin"/></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Truck No.</strong></td>
+                            <td><span t-field="o.truck_plate"/></td>
+                            <td><strong>Destination</strong></td>
+                            <td><span t-field="o.destination"/></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Driver</strong></td>
+                            <td><span t-field="o.driver_id.name"/></td>
+                            <td><strong>Cargo</strong></td>
+                            <td><span t-field="o.cargo_description"/></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Odometer</strong></td>
+                            <td><span t-field="o.odometer"/> <span t-field="o.odometer_unit"/></td>
+                            <td><strong>Company</strong></td>
+                            <td><span t-field="o.company_id.name"/></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <table class="table table-sm table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Fuel Station</th>
+                            <th class="text-end">Diesel (L)</th>
+                            <th class="text-end">Price / L</th>
+                            <th class="text-end">Fuel Cost</th>
+                            <th class="text-end">Cash Advance</th>
+                            <th class="text-end">Total Reimbursable</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span t-field="o.fuel_station_id.name"/></td>
+                            <td class="text-end"><span t-field="o.diesel_litres"/></td>
+                            <td class="text-end"><span t-field="o.fuel_price_per_litre"/></td>
+                            <td class="text-end"><span t-field="o.fuel_cost"/></td>
+                            <td class="text-end"><span t-field="o.cash_advance"/></td>
+                            <td class="text-end"><strong t-field="o.total_reimbursable"/></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div t-if="o.notes" class="mb-4">
+                    <strong>Notes:</strong>
+                    <p t-field="o.notes"/>
+                </div>
+
+                <div class="row mt-5">
+                    <div class="col-4 text-center">
+                        <div style="border-top: 1px solid black; margin: 40px 10px 0;">Dispatcher</div>
+                    </div>
+                    <div class="col-4 text-center">
+                        <div style="border-top: 1px solid black; margin: 40px 10px 0;">
+                            Driver (<span t-field="o.driver_id.name"/>)
+                        </div>
+                    </div>
+                    <div class="col-4 text-center">
+                        <div style="border-top: 1px solid black; margin: 40px 10px 0;">Fuel Station Attendant</div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="report_fleet_dispatch">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="fleet_dispatch.report_fleet_dispatch_document"/>
+            </t>
+        </t>
+    </template>
+
+</odoo>

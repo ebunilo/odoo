@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+
+    <!-- Service products used on the dispatch vendor bill. Expense accounts
+         are set per product (or product category) by the accountant. -->
+    <record id="product_dispatch_diesel" model="product.product">
+        <field name="name">Diesel</field>
+        <field name="default_code">DISP-DIESEL</field>
+        <field name="type">service</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+        <field name="uom_id" ref="uom.product_uom_litre"/>
+        <field name="supplier_taxes_id" eval="[Command.clear()]"/>
+        <field name="taxes_id" eval="[Command.clear()]"/>
+    </record>
+
+    <record id="product_dispatch_cash_advance" model="product.product">
+        <field name="name">Driver Cash Advance</field>
+        <field name="default_code">DISP-ADVANCE</field>
+        <field name="type">service</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+        <field name="supplier_taxes_id" eval="[Command.clear()]"/>
+        <field name="taxes_id" eval="[Command.clear()]"/>
+    </record>
+
+</odoo>
